@@ -2,6 +2,9 @@ use std::sync::{Mutex,Arc,Condvar};
 use std::sync::mpsc::Receiver;
 use std::thread;
 
+#[macro_use]
+extern crate log;
+
 
 #[derive(Debug,Clone)]
 pub struct State {
@@ -161,7 +164,7 @@ impl Searcher {
             };
 
             thread::spawn(move || {
-                println!("[worker {}] start", worker_id);
+                debug!("[worker {}] start", worker_id);
                 'worker: loop {
                     let mut node;
                     'get_node: loop {
@@ -172,19 +175,18 @@ impl Searcher {
                                 break 'get_node;
                             },
                             None => {
-                                println!("[worker {}]no elem in queue", worker_id);
+                                debug!("[worker {}]no elem in queue", worker_id);
                                 waiting_workers.lock().unwrap().push(worker_id);
-                                println!("{:?}", *waiting_workers.lock().unwrap());
                                 let all_waiting = is_all_worker_waiting(&*waiting_workers.lock().unwrap(), thread_num);
                                 if all_waiting {
                                     *is_finished.lock().unwrap() = true;
                                     condvar_worker.notify_all();
-                                    println!("[worker {}] finished first", worker_id);
+                                    debug!("[worker {}] finished first", worker_id);
                                     return;
                                 } else {
                                     condvar_worker.wait(waiting_workers.lock().unwrap());
                                     if *is_finished.lock().unwrap() {
-                                        println!("[worker {}] finished", worker_id);
+                                        debug!("[worker {}] finished", worker_id);
                                         return;
                                     }
                                 }
@@ -211,7 +213,7 @@ impl Searcher {
                     }
 
                     { // generate child
-                        println!("next {}", worker_id);
+                        debug!("next {}", worker_id);
                         let child = node.next_child();
                         match child {
                             None => {
@@ -234,11 +236,18 @@ impl Searcher {
 }
 
 
-#[test]
-fn test() {
-    let mut searcher = Arc::new(Searcher::new());
-    println!("{:?}", searcher);
-    searcher.run(2);
+mod tests {
+    use std::sync::{Mutex,Arc,Condvar};
+    use super::*;
+    extern crate env_logger;
+
+    #[test]
+    fn test() {
+        let _ = env_logger::init();
+        let mut searcher = Arc::new(Searcher::new());
+        println!("{:?}", searcher);
+        searcher.run(2);
+    }
 }
 
 

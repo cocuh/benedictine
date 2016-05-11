@@ -3,6 +3,10 @@ name = "benedictine-core"
 version = "0.1.0"
 authors = ["Kosuke Kusano <cocuh.kk@gmail.com>"]
 
+[dependencies]
+log = "*"
+env_logger = "0.3"
+
 [dependencies.cpython]
 git = "https://github.com/dgrunwald/rust-cpython.git"
 default-features = false
