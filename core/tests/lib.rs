@@ -17,7 +17,7 @@ impl TreeNode {
 }
 
 impl Node for TreeNode {
-    fn initial() -> TreeNode {
+    fn root() -> TreeNode {
         TreeNode { data: Vec::new() }
     }
 
@@ -36,13 +36,13 @@ impl std::cmp::Eq for TreeNode {}
 
 
 #[derive(Debug, Clone)]
-pub struct TreeNodeIterator {
+pub struct TreeBranchIterator {
     current: usize,
 }
 
-impl StateIterator<TreeNode> for TreeNodeIterator {
-    fn new() -> TreeNodeIterator {
-        TreeNodeIterator { current: 1 }
+impl BranchIterator<TreeNode> for TreeBranchIterator {
+    fn new() -> Self {
+        TreeBranchIterator { current: 1 }
     }
 
     fn next(&mut self, state: &TreeNode) -> Option<TreeNode> {
@@ -63,7 +63,7 @@ impl StateIterator<TreeNode> for TreeNodeIterator {
 #[test]
 fn test() {
     let _ = env_logger::init();
-    let mut searcher = Arc::new(Searcher::<TreeNode, TreeNodeIterator>::new());
+    let mut searcher = Arc::new(Searcher::<TreeNode, TreeBranchIterator>::new());
     searcher.run(8);
     let results = searcher.get_results();
 

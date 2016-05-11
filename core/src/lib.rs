@@ -6,37 +6,37 @@ extern crate log;
 
 
 pub trait Node: Send + Sync + Clone + Eq + 'static {
-    fn initial() -> Self;
+    fn root() -> Self;
     fn is_leaf(&self) -> bool;
 }
 
-pub trait StateIterator<S>: Send + Sync + Clone + 'static {
+pub trait BranchIterator<N>: Send + Sync + Clone + 'static {
     fn new() -> Self;
-    fn next(&mut self, state: &S) -> Option<S>;
+    fn next(&mut self, node: &N) -> Option<N>;
 }
 #[derive(Debug)]
-pub struct Job<S, SI> {
-    state: S,
-    iterator: Mutex<SI>,
+pub struct Job<N, BI> {
+    node: N,
+    iterator: Mutex<BI>,
 }
 
 
-impl<S, SI> Job<S, SI>
-    where S: Node,
-          SI: StateIterator<S>
+impl<N, BI> Job<N, BI>
+    where N: Node,
+          BI: BranchIterator<N>
 {
-    fn new(state: S) -> Job<S, SI> {
+    fn new(node: N) -> Job<N, BI> {
         Job {
-            state: state,
-            iterator: Mutex::new(SI::new()),
+            node: node,
+            iterator: Mutex::new(BI::new()),
         }
     }
 
-    fn next_child(&self) -> Option<Job<S, SI>> {
-        let result = self.iterator.lock().unwrap().next(&self.state);
+    fn next_child(&self) -> Option<Job<N, BI>> {
+        let result = self.iterator.lock().unwrap().next(&self.node);
         match result {
             None => None,
-            Some(state) => Some(Job::new(state)),
+            Some(node) => Some(Job::new(node)),
         }
     }
 
@@ -45,13 +45,13 @@ impl<S, SI> Job<S, SI>
     }
 }
 
-impl<S: Eq, SI> std::cmp::PartialEq for Job<S, SI> {
-    fn eq(&self, other: &Job<S, SI>) -> bool {
-        return self.state == other.state;
+impl<N: Eq, BI> std::cmp::PartialEq for Job<N, BI> {
+    fn eq(&self, other: &Job<N, BI>) -> bool {
+        return self.node == other.node;
     }
 }
 
-impl<S: Eq, SI> std::cmp::Eq for Job<S, SI> {}
+impl<N: Eq, BI> std::cmp::Eq for Job<N, BI> {}
 
 
 #[derive(Debug, Clone)]
@@ -79,28 +79,28 @@ fn is_all_worker_waiting(workerids: &Vec<usize>, thread_num: usize) -> bool {
 }
 
 
-impl<S, SI> std::fmt::Debug for Searcher<S, SI> {
+impl<N, BI> std::fmt::Debug for Searcher<N, BI> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         Ok(())
     }
 }
 
-pub struct Searcher<S, SI> {
-    queue: Arc<Mutex<Vec<Arc<Job<S, SI>>>>>,
-    results: Arc<Mutex<Vec<S>>>,
+pub struct Searcher<N, BI> {
+    queue: Arc<Mutex<Vec<Arc<Job<N, BI>>>>>,
+    results: Arc<Mutex<Vec<N>>>,
     bounds: Arc<Mutex<Bounds>>,
     waiting_workers: Arc<Mutex<Vec<usize>>>,
     is_finished: Arc<Mutex<bool>>,
     condvar_worker: Arc<Condvar>,
 }
 
-impl<S, SI> Searcher<S, SI>
-    where S: Node,
-          SI: StateIterator<S>
+impl<N, BI> Searcher<N, BI>
+    where N: Node,
+          BI: BranchIterator<N>
 {
-    pub fn new() -> Searcher<S, SI> {
+    pub fn new() -> Searcher<N, BI> {
         let mut queue = Vec::new();
-        queue.push(Arc::new(Job::new(S::initial())));
+        queue.push(Arc::new(Job::new(N::root())));
         Searcher {
             queue: Arc::new(Mutex::new(queue)),
             results: Arc::new(Mutex::new(Vec::new())),
@@ -114,9 +114,9 @@ impl<S, SI> Searcher<S, SI>
     pub fn run(&self, thread_num: usize) {
         assert!(thread_num >= 1);
 
-        fn push_job<S, SI>(condvar_worker: &Arc<Condvar>,
-                            queue: &Arc<Mutex<Vec<Arc<Job<S, SI>>>>>,
-                            job: Arc<Job<S, SI>>) {
+        fn push_job<N, BI>(condvar_worker: &Arc<Condvar>,
+                            queue: &Arc<Mutex<Vec<Arc<Job<N, BI>>>>>,
+                            job: Arc<Job<N, BI>>) {
             queue.lock().unwrap().push(job);
             condvar_worker.notify_all();
         };
@@ -167,10 +167,10 @@ impl<S, SI> Searcher<S, SI>
 
                         {
                             // leaf process
-                            if job.state.is_leaf() {
+                            if job.node.is_leaf() {
                                 let mut queue = queue.lock().unwrap();
                                 remove_item(&mut *queue, &job);
-                                results.lock().unwrap().push(job.state.clone());
+                                results.lock().unwrap().push(job.node.clone());
                                 continue 'worker;
                             } else {
                                 push_job(&condvar_worker, &queue, job.clone());
@@ -209,7 +209,7 @@ impl<S, SI> Searcher<S, SI>
         }
     }
 
-    pub fn get_results(&self) -> Vec<S> {
+    pub fn get_results(&self) -> Vec<N> {
         self.results.lock().unwrap().clone()
     }
 }
