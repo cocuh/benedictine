@@ -27,7 +27,7 @@ pub trait Queue<T> {
 }
 
 #[derive(Clone)]
-struct VoidBounds {}
+pub struct VoidBounds {}
 
 impl Bounds for VoidBounds {
     fn new() -> Self {
@@ -149,7 +149,7 @@ impl<N, BI, B> Searcher<N, BI, B>
                 thread::spawn(move || {
                     debug!("[worker {}] start", worker_id);
                     'worker: loop {
-                        let mut job;
+                        let job;
                         'get_job: loop {
                             let mut _job = queue.lock().unwrap().dequeue();
                             match _job {
@@ -169,8 +169,7 @@ impl<N, BI, B> Searcher<N, BI, B>
                                         debug!("[worker {}] finished first", worker_id);
                                         return;
                                     } else {
-                                        condvar_worker.wait(waiting_workers.lock().unwrap());
-                                        if *is_finished.lock().unwrap() {
+                                        if *condvar_worker.wait(is_finished.lock().unwrap()).unwrap() {
                                             debug!("[worker {}] finished", worker_id);
                                             return;
                                         } else {
