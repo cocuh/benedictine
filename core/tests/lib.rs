@@ -6,19 +6,19 @@ use benedictine_core::*;
 extern crate env_logger;
 
 #[derive(Debug,Clone)]
-pub struct TreeState {
+pub struct TreeNode {
     data: Vec<usize>,
 }
 
-impl TreeState {
-    fn new(data: Vec<usize>) -> TreeState {
-        TreeState { data: data }
+impl TreeNode {
+    fn new(data: Vec<usize>) -> TreeNode {
+        TreeNode { data: data }
     }
 }
 
-impl State for TreeState {
-    fn initial() -> TreeState {
-        TreeState { data: Vec::new() }
+impl Node for TreeNode {
+    fn initial() -> TreeNode {
+        TreeNode { data: Vec::new() }
     }
 
     fn is_leaf(&self) -> bool {
@@ -26,32 +26,32 @@ impl State for TreeState {
     }
 }
 
-impl std::cmp::PartialEq for TreeState {
-    fn eq(&self, other: &TreeState) -> bool {
+impl std::cmp::PartialEq for TreeNode {
+    fn eq(&self, other: &TreeNode) -> bool {
         return self.data == other.data;
     }
 }
 
-impl std::cmp::Eq for TreeState {}
+impl std::cmp::Eq for TreeNode {}
 
 
 #[derive(Debug, Clone)]
-pub struct TreeStateIterator {
+pub struct TreeNodeIterator {
     current: usize,
 }
 
-impl StateIterator<TreeState> for TreeStateIterator {
-    fn new() -> TreeStateIterator {
-        TreeStateIterator { current: 1 }
+impl StateIterator<TreeNode> for TreeNodeIterator {
+    fn new() -> TreeNodeIterator {
+        TreeNodeIterator { current: 1 }
     }
 
-    fn next(&mut self, state: &TreeState) -> Option<TreeState> {
+    fn next(&mut self, state: &TreeNode) -> Option<TreeNode> {
         let mut data = state.data.clone();
         match self.current {
             1...3 => {
                 data.push(self.current);
                 self.current += 1;
-                Some(TreeState::new(data))
+                Some(TreeNode::new(data))
             }
             _ => None,
         }
@@ -63,7 +63,7 @@ impl StateIterator<TreeState> for TreeStateIterator {
 #[test]
 fn test() {
     let _ = env_logger::init();
-    let mut searcher = Arc::new(Searcher::<TreeState, TreeStateIterator>::new());
+    let mut searcher = Arc::new(Searcher::<TreeNode, TreeNodeIterator>::new());
     searcher.run(8);
     let results = searcher.get_results();
 

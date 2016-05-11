@@ -5,7 +5,7 @@ use std::thread;
 extern crate log;
 
 
-pub trait State: Send + Sync + Clone + Eq + 'static {
+pub trait Node: Send + Sync + Clone + Eq + 'static {
     fn initial() -> Self;
     fn is_leaf(&self) -> bool;
 }
@@ -15,33 +15,29 @@ pub trait StateIterator<S>: Send + Sync + Clone + 'static {
     fn next(&mut self, state: &S) -> Option<S>;
 }
 #[derive(Debug)]
-pub struct Node<S, SI> {
+pub struct Job<S, SI> {
     state: S,
     iterator: Mutex<SI>,
 }
 
 
-impl<S, SI> Node<S, SI>
-    where S: State,
+impl<S, SI> Job<S, SI>
+    where S: Node,
           SI: StateIterator<S>
 {
-    fn new(state: S) -> Node<S, SI> {
-        Node {
+    fn new(state: S) -> Job<S, SI> {
+        Job {
             state: state,
             iterator: Mutex::new(SI::new()),
         }
     }
 
-    fn next_child(&self) -> Option<Node<S, SI>> {
+    fn next_child(&self) -> Option<Job<S, SI>> {
         let result = self.iterator.lock().unwrap().next(&self.state);
         match result {
             None => None,
-            Some(state) => Some(Node::new(state)),
+            Some(state) => Some(Job::new(state)),
         }
-    }
-
-    fn is_leaf(&self) -> bool {
-        self.state.is_leaf()
     }
 
     fn satisfy_bound(&self, bounds: Bounds) -> bool {
@@ -49,13 +45,13 @@ impl<S, SI> Node<S, SI>
     }
 }
 
-impl<S: Eq, SI> std::cmp::PartialEq for Node<S, SI> {
-    fn eq(&self, other: &Node<S, SI>) -> bool {
+impl<S: Eq, SI> std::cmp::PartialEq for Job<S, SI> {
+    fn eq(&self, other: &Job<S, SI>) -> bool {
         return self.state == other.state;
     }
 }
 
-impl<S: Eq, SI> std::cmp::Eq for Node<S, SI> {}
+impl<S: Eq, SI> std::cmp::Eq for Job<S, SI> {}
 
 
 #[derive(Debug, Clone)]
@@ -68,10 +64,10 @@ impl Bounds {
     }
 }
 
-fn remove_item<T: Eq>(nodes: &mut Vec<Arc<T>>, node: &Arc<T>) {
-    match nodes.iter().position(|n| *(*n) == **node) {
+fn remove_item<T: Eq>(jobs: &mut Vec<Arc<T>>, job: &Arc<T>) {
+    match jobs.iter().position(|n| *(*n) == **job) {
         Some(idx) => {
-            nodes.remove(idx);
+            jobs.remove(idx);
         }
         None => {}
     }
@@ -90,7 +86,7 @@ impl<S, SI> std::fmt::Debug for Searcher<S, SI> {
 }
 
 pub struct Searcher<S, SI> {
-    nodes: Arc<Mutex<Vec<Arc<Node<S, SI>>>>>,
+    queue: Arc<Mutex<Vec<Arc<Job<S, SI>>>>>,
     results: Arc<Mutex<Vec<S>>>,
     bounds: Arc<Mutex<Bounds>>,
     waiting_workers: Arc<Mutex<Vec<usize>>>,
@@ -99,14 +95,14 @@ pub struct Searcher<S, SI> {
 }
 
 impl<S, SI> Searcher<S, SI>
-    where S: State,
+    where S: Node,
           SI: StateIterator<S>
 {
     pub fn new() -> Searcher<S, SI> {
-        let mut nodes = Vec::new();
-        nodes.push(Arc::new(Node::new(S::initial())));
+        let mut queue = Vec::new();
+        queue.push(Arc::new(Job::new(S::initial())));
         Searcher {
-            nodes: Arc::new(Mutex::new(nodes)),
+            queue: Arc::new(Mutex::new(queue)),
             results: Arc::new(Mutex::new(Vec::new())),
             bounds: Arc::new(Mutex::new(Bounds::new())),
             waiting_workers: Arc::new(Mutex::new(Vec::new())),
@@ -118,16 +114,16 @@ impl<S, SI> Searcher<S, SI>
     pub fn run(&self, thread_num: usize) {
         assert!(thread_num >= 1);
 
-        fn push_node<S, SI>(condvar_worker: &Arc<Condvar>,
-                            nodes: &Arc<Mutex<Vec<Arc<Node<S, SI>>>>>,
-                            node: Arc<Node<S, SI>>) {
-            nodes.lock().unwrap().push(node);
+        fn push_job<S, SI>(condvar_worker: &Arc<Condvar>,
+                            queue: &Arc<Mutex<Vec<Arc<Job<S, SI>>>>>,
+                            job: Arc<Job<S, SI>>) {
+            queue.lock().unwrap().push(job);
             condvar_worker.notify_all();
         };
 
         let workers = (0..thread_num)
             .map(|worker_id| {
-                let nodes = self.nodes.clone();
+                let queue = self.queue.clone();
                 let results = self.results.clone();
                 let bounds = self.bounds.clone();
                 let waiting_workers = self.waiting_workers.clone();
@@ -137,13 +133,13 @@ impl<S, SI> Searcher<S, SI>
                 thread::spawn(move || {
                     debug!("[worker {}] start", worker_id);
                     'worker: loop {
-                        let mut node;
-                        'get_node: loop {
-                            let mut node_pop = nodes.lock().unwrap().pop();
-                            match node_pop {
-                                Some(n) => {
-                                    node = n;
-                                    break 'get_node;
+                        let mut job;
+                        'get_job: loop {
+                            let mut _job = queue.lock().unwrap().pop();
+                            match _job {
+                                Some(j) => {
+                                    job = j;
+                                    break 'get_job;
                                 }
                                 None => {
                                     debug!("[worker {}] no elem in queue", worker_id);
@@ -167,24 +163,24 @@ impl<S, SI> Searcher<S, SI>
                                     }
                                 }
                             }
-                        } // get_node and detect is finished
+                        } // get_job and detect is finished
 
                         {
                             // leaf process
-                            if node.is_leaf() {
-                                let mut nodes = nodes.lock().unwrap();
-                                remove_item(&mut *nodes, &node);
-                                results.lock().unwrap().push(node.state.clone());
+                            if job.state.is_leaf() {
+                                let mut queue = queue.lock().unwrap();
+                                remove_item(&mut *queue, &job);
+                                results.lock().unwrap().push(job.state.clone());
                                 continue 'worker;
                             } else {
-                                push_node(&condvar_worker, &nodes, node.clone());
+                                push_job(&condvar_worker, &queue, job.clone());
                             }
                         }
 
                         {
                             // check bounds
                             let bounds = bounds.lock().unwrap().clone();
-                            if !node.satisfy_bound(bounds) {
+                            if !job.satisfy_bound(bounds) {
                                 continue;
                             }
                         }
@@ -192,14 +188,14 @@ impl<S, SI> Searcher<S, SI>
                         {
                             // generate child
                             debug!("[worker {}] next", worker_id);
-                            let child = node.next_child();
+                            let child = job.next_child();
                             match child {
                                 None => {
-                                    let mut nodes = nodes.lock().unwrap();
-                                    remove_item(&mut *nodes, &node);
+                                    let mut queue = queue.lock().unwrap();
+                                    remove_item(&mut *queue, &job);
                                 }
                                 Some(child) => {
-                                    push_node(&condvar_worker, &nodes, Arc::new(child));
+                                    push_job(&condvar_worker, &queue, Arc::new(child));
                                 }
                             }
                         }
