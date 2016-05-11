@@ -59,7 +59,7 @@ impl BranchIterator<TreeNode> for TreeBranchIterator {
     fn next(&mut self, state: &TreeNode) -> Option<TreeNode> {
         let mut data = state.data.clone();
         match self.current {
-            1...3 => {
+            1...8 => {
                 data.push(self.current);
                 self.current += 1;
                 Some(TreeNode::new(data))
@@ -78,6 +78,6 @@ fn test() {
     searcher.run(8);
     let results = searcher.get_results();
 
-    assert_eq!(results.len(), 3*3*3);
+    assert_eq!(results.len(), 8*8*8);
 }
 

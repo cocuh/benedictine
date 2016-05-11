@@ -193,7 +193,7 @@ impl<N, BI, B> Searcher<N, BI, B>
                         }
 
                         {
-                            // check bounds
+                            // pruning here
                         }
 
                         {
