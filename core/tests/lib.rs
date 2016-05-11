@@ -6,7 +6,18 @@ use benedictine_core::*;
 extern crate env_logger;
 
 #[derive(Debug,Clone)]
-pub struct TreeNode {
+struct TreeBounds {
+}
+
+impl Bounds for TreeBounds {
+    fn new() -> Self {
+        TreeBounds{}
+    }
+}
+
+
+#[derive(Debug,Clone)]
+struct TreeNode {
     data: Vec<usize>,
 }
 
@@ -14,13 +25,13 @@ impl TreeNode {
     fn new(data: Vec<usize>) -> TreeNode {
         TreeNode { data: data }
     }
-}
 
-impl Node for TreeNode {
     fn root() -> TreeNode {
         TreeNode { data: Vec::new() }
     }
+}
 
+impl Node for TreeNode {
     fn is_leaf(&self) -> bool {
         self.data.len() >= 3
     }
@@ -63,7 +74,7 @@ impl BranchIterator<TreeNode> for TreeBranchIterator {
 #[test]
 fn test() {
     let _ = env_logger::init();
-    let mut searcher = Arc::new(Searcher::<TreeNode, TreeBranchIterator>::new());
+    let mut searcher = Arc::new(Searcher::<TreeNode, TreeBranchIterator, TreeBounds>::new(TreeNode::root()));
     searcher.run(8);
     let results = searcher.get_results();
 
