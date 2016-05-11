@@ -14,4 +14,4 @@ features = ["python3-sys"]
 
 [lib]
 name = "benedictine_core"
-crate-type=["dylib"]
+crate-type=["dylib", "rlib"]

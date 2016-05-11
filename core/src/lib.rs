@@ -14,60 +14,6 @@ pub trait StateIterator<S>: Send + Sync + Clone + 'static {
     fn new() -> Self;
     fn next(&mut self, state: &S) -> Option<S>;
 }
-
-#[derive(Debug,Clone)]
-pub struct TreeState {
-    data: Vec<usize>,
-}
-
-impl TreeState {
-    fn new(data: Vec<usize>) -> TreeState {
-        TreeState { data: data }
-    }
-}
-
-impl State for TreeState {
-    fn initial() -> TreeState {
-        TreeState { data: Vec::new() }
-    }
-
-    fn is_leaf(&self) -> bool {
-        self.data.len() >= 3
-    }
-}
-
-impl std::cmp::PartialEq for TreeState {
-    fn eq(&self, other: &TreeState) -> bool {
-        return self.data == other.data;
-    }
-}
-
-impl std::cmp::Eq for TreeState {}
-
-
-#[derive(Debug, Clone)]
-pub struct TreeStateIterator {
-    current: usize,
-}
-
-impl StateIterator<TreeState> for TreeStateIterator {
-    fn new() -> TreeStateIterator {
-        TreeStateIterator { current: 1 }
-    }
-
-    fn next(&mut self, state: &TreeState) -> Option<TreeState> {
-        let mut data = state.data.clone();
-        match self.current {
-            1...3 => {
-                data.push(self.current);
-                self.current += 1;
-                Some(TreeState::new(data))
-            }
-            _ => None,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct Node<S, SI> {
     state: S,
@@ -156,7 +102,7 @@ impl<S, SI> Searcher<S, SI>
     where S: State,
           SI: StateIterator<S>
 {
-    fn new() -> Searcher<S, SI> {
+    pub fn new() -> Searcher<S, SI> {
         let mut nodes = Vec::new();
         nodes.push(Arc::new(Node::new(S::initial())));
         Searcher {
@@ -169,7 +115,7 @@ impl<S, SI> Searcher<S, SI>
         }
     }
 
-    fn run(&self, thread_num: usize) {
+    pub fn run(&self, thread_num: usize) {
         assert!(thread_num >= 1);
 
         fn push_node<S, SI>(condvar_worker: &Arc<Condvar>,
@@ -266,20 +212,10 @@ impl<S, SI> Searcher<S, SI>
             worker.join();
         }
     }
-}
 
-
-mod tests {
-    use std::sync::{Mutex, Arc, Condvar};
-    use super::*;
-    extern crate env_logger;
-
-    #[test]
-    fn test() {
-        let _ = env_logger::init();
-        let mut searcher = Arc::new(Searcher::<TreeState, TreeStateIterator>::new());
-        println!("{:?}", searcher);
-        searcher.run(8);
-        println!("{:?}", *searcher.results.lock().unwrap());
+    pub fn get_results(&self) -> Vec<S> {
+        self.results.lock().unwrap().clone()
     }
 }
+
+
