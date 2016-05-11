@@ -5,12 +5,12 @@ use std::thread;
 extern crate log;
 
 
-pub trait State: Send + Sync + Clone + Eq + 'static {
+pub trait State : Send + Sync+Clone+Eq+'static {
     fn initial() -> Self;
     fn is_leaf(&self) -> bool;
 }
 
-pub trait StateIterator<S>: Send + Sync + Clone + 'static {
+pub trait StateIterator<S>:Send+Sync+Clone+'static {
     fn new() -> Self;
     fn next(&mut self, state: &S) -> Option<S>;
 }
@@ -75,10 +75,7 @@ pub struct Node<S, SI> {
 }
 
 
-impl<S, SI> Node<S, SI>
-    where S: State,
-          SI: StateIterator<S>
-{
+impl<S, SI> Node<S, SI> where S:State, SI:StateIterator<S> {
     fn new(state: S) -> Node<S, SI> {
         Node {
             state: state,
@@ -103,13 +100,13 @@ impl<S, SI> Node<S, SI>
     }
 }
 
-impl<S: Eq, SI> std::cmp::PartialEq for Node<S, SI> {
+impl<S:Eq, SI> std::cmp::PartialEq for Node<S, SI> {
     fn eq(&self, other: &Node<S, SI>) -> bool {
         return self.state == other.state;
     }
 }
 
-impl<S: Eq, SI> std::cmp::Eq for Node<S, SI> {}
+impl<S:Eq, SI> std::cmp::Eq for Node<S, SI> {}
 
 
 #[derive(Debug, Clone)]
@@ -153,9 +150,7 @@ pub struct Searcher<S, SI> {
 }
 
 impl<S, SI> Searcher<S, SI>
-    where S: State,
-          SI: StateIterator<S>
-{
+where S: State, SI: StateIterator<S> {
     fn new() -> Searcher<S, SI> {
         let mut nodes = Vec::new();
         nodes.push(Arc::new(Node::new(S::initial())));
@@ -173,8 +168,8 @@ impl<S, SI> Searcher<S, SI>
         assert!(thread_num >= 1);
 
         fn push_node<S, SI>(condvar_worker: &Arc<Condvar>,
-                            nodes: &Arc<Mutex<Vec<Arc<Node<S, SI>>>>>,
-                            node: Arc<Node<S, SI>>) {
+                     nodes: &Arc<Mutex<Vec<Arc<Node<S, SI>>>>>,
+                     node: Arc<Node<S, SI>>) {
             nodes.lock().unwrap().push(node);
             condvar_worker.notify_all();
         };
