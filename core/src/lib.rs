@@ -20,11 +20,13 @@ pub trait Bounds : Clone {
 }
 
 pub trait Queue<T> {
-    fn new() -> Self;
+    fn new() -> Self where Self:Sized;
     fn enqueue(&mut self, elem: T);
     fn dequeue(&mut self) -> Option<T>;
     fn len(&self) -> usize;
 }
+
+type SharableQueue<'a, T> = Queue<T>+'a + Sized + Send;
 
 #[derive(Clone)]
 pub struct VoidBounds {}
@@ -86,7 +88,7 @@ impl<N: Eq, BI> std::cmp::PartialEq for Job<N, BI> {
 impl<N: Eq, BI> std::cmp::Eq for Job<N, BI> {}
 
 pub struct Searcher<N, BI, B=VoidBounds> {
-    queue: Arc<Mutex<FIFOQueue<Arc<Job<N, BI>>>>>,
+    queue: Arc<Mutex<SharableQueue<'static, Arc<Job<N, BI>>>>>,
     results: Arc<Mutex<Vec<N>>>,
     bounds: Arc<RwLock<B>>,
     waiting_workers: Arc<Mutex<HashSet<usize>>>,
@@ -115,9 +117,9 @@ impl<N, BI, B> Searcher<N, BI, B>
     pub fn run(&self, thread_num: usize) {
         assert!(thread_num >= 1);
 
-        fn push_job<N, BI, Q: Queue<Arc<Job<N, BI>>>>
+        fn push_job<N, BI>
             (condvar_worker: &Arc<Condvar>,
-                            queue: &Arc<Mutex<Q>>,
+                            queue: &Arc<Mutex<SharableQueue<Arc<Job<N,BI>>>>>,
                             job: Arc<Job<N, BI>>) {
             queue.lock().unwrap().enqueue(job);
             condvar_worker.notify_all();
