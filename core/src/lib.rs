@@ -10,8 +10,8 @@ pub trait Node: Send + Sync + Clone + Eq + 'static {
 }
 
 pub trait BranchIterator<N>: Send + Sync + Clone + 'static {
-    fn new() -> Self;
-    fn next(&mut self, node: &N) -> Option<N>;
+    fn new(node: &N) -> Self;
+    fn next(&mut self) -> Option<N>;
 }
 
 pub trait Bounds : Clone {
@@ -78,9 +78,10 @@ impl<N, BI> Job<N, BI>
           BI: BranchIterator<N>
 {
     fn new(node: N) -> Job<N, BI> {
+        let iter = BI::new(&node);
         Job {
             node: node,
-            iterator: Mutex::new(BI::new()),
+            iterator: Mutex::new(iter),
         }
     }
 }
@@ -199,7 +200,7 @@ impl<N, BI, B> Searcher<N, BI, B>
                         {
                             // generate child
                             debug!("[worker {}] next", worker_id);
-                            let child_node = job.iterator.lock().unwrap().next(&job.node);
+                            let child_node = job.iterator.lock().unwrap().next();
                             match child_node {
                                 None => {
                                     // no more child node from this job.node,

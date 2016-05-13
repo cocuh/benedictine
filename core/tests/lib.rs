@@ -49,15 +49,19 @@ impl std::cmp::Eq for TreeNode {}
 #[derive(Debug, Clone)]
 pub struct TreeBranchIterator {
     current: usize,
+    node: TreeNode,
 }
 
 impl BranchIterator<TreeNode> for TreeBranchIterator {
-    fn new() -> Self {
-        TreeBranchIterator { current: 1 }
+    fn new(node: &TreeNode) -> Self {
+        TreeBranchIterator {
+            current: 1,
+            node: node.clone(),
+        }
     }
 
-    fn next(&mut self, state: &TreeNode) -> Option<TreeNode> {
-        let mut data = state.data.clone();
+    fn next(&mut self) -> Option<TreeNode> {
+        let mut data = self.node.data.clone();
         match self.current {
             1...8 => {
                 data.push(self.current);
