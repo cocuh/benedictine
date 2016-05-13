@@ -85,7 +85,6 @@ impl<N: Eq, BI> std::cmp::PartialEq for Job<N, BI> {
 
 impl<N: Eq, BI> std::cmp::Eq for Job<N, BI> {}
 
-
 pub struct Searcher<N, BI, B=VoidBounds> {
     queue: Arc<Mutex<FIFOQueue<Arc<Job<N, BI>>>>>,
     results: Arc<Mutex<Vec<N>>>,
@@ -155,17 +154,18 @@ impl<N, BI, B> Searcher<N, BI, B>
                                 }
                                 None => {
                                     debug!("[worker {}] no elem in queue", worker_id);
+                                    let mut is_finished = is_finished.lock().unwrap();
                                     waiting_workers.lock().unwrap().insert(worker_id);
                                     let all_waiting = is_all_worker_waiting(
                                             &*waiting_workers.lock().unwrap(),
                                             thread_num);
                                     if all_waiting {
-                                        *is_finished.lock().unwrap() = true;
+                                        *is_finished = true;
                                         condvar_worker.notify_all();
                                         debug!("[worker {}] finished", worker_id);
                                         return;
                                     } else {
-                                        if *condvar_worker.wait(is_finished.lock().unwrap()).unwrap() {
+                                        if *condvar_worker.wait(is_finished).unwrap() {
                                             debug!("[worker {}] finished by notification", worker_id);
                                             return;
                                         } else {
