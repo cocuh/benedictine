@@ -1,4 +1,4 @@
-use std::sync::{Mutex, Arc, Condvar};
+use std::sync::{Mutex, Arc, Condvar, RwLock};
 use std::thread;
 use std::collections::HashSet;
 
@@ -88,7 +88,7 @@ impl<N: Eq, BI> std::cmp::Eq for Job<N, BI> {}
 pub struct Searcher<N, BI, B=VoidBounds> {
     queue: Arc<Mutex<FIFOQueue<Arc<Job<N, BI>>>>>,
     results: Arc<Mutex<Vec<N>>>,
-    bounds: Arc<Mutex<B>>,
+    bounds: Arc<RwLock<B>>,
     waiting_workers: Arc<Mutex<HashSet<usize>>>,
     is_finished: Arc<Mutex<bool>>,
     condvar_worker: Arc<Condvar>,
@@ -105,7 +105,7 @@ impl<N, BI, B> Searcher<N, BI, B>
         Searcher {
             queue: Arc::new(Mutex::new(queue)),
             results: Arc::new(Mutex::new(Vec::new())),
-            bounds: Arc::new(Mutex::new(B::new())),
+            bounds: Arc::new(RwLock::new(B::new())),
             waiting_workers: Arc::new(Mutex::new(HashSet::new())),
             is_finished: Arc::new(Mutex::new(false)),
             condvar_worker: Arc::new(Condvar::new()),
