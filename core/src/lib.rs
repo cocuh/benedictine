@@ -1,5 +1,6 @@
 use std::sync::{Mutex, Arc, Condvar};
 use std::thread;
+use std::collections::HashSet;
 
 #[macro_use]
 extern crate log;
@@ -22,7 +23,6 @@ pub trait Queue<T> {
     fn new() -> Self;
     fn enqueue(&mut self, elem: T);
     fn dequeue(&mut self) -> Option<T>;
-    fn remove(&mut self, elem: &T);
     fn len(&self) -> usize;
 }
 
@@ -50,15 +50,6 @@ impl<T:Eq> Queue<T> for FIFOQueue<T> {
 
     fn dequeue(&mut self) -> Option<T> {
         self.data.pop()
-    }
-
-    fn remove(&mut self, elem: &T) {
-        match self.data.iter().position(|n| *n == *elem) {
-            Some(idx) => {
-                self.data.remove(idx);
-            }
-            None => {}
-        }
     }
 
     fn len(&self) -> usize {
@@ -95,16 +86,11 @@ impl<N: Eq, BI> std::cmp::PartialEq for Job<N, BI> {
 impl<N: Eq, BI> std::cmp::Eq for Job<N, BI> {}
 
 
-fn is_all_worker_waiting(workerids: &Vec<usize>, thread_num: usize) -> bool {
-    return (0..thread_num).all(|id| workerids.contains(&id));
-}
-
-
 pub struct Searcher<N, BI, B=VoidBounds> {
     queue: Arc<Mutex<FIFOQueue<Arc<Job<N, BI>>>>>,
     results: Arc<Mutex<Vec<N>>>,
     bounds: Arc<Mutex<B>>,
-    waiting_workers: Arc<Mutex<Vec<usize>>>,
+    waiting_workers: Arc<Mutex<HashSet<usize>>>,
     is_finished: Arc<Mutex<bool>>,
     condvar_worker: Arc<Condvar>,
 }
@@ -121,7 +107,7 @@ impl<N, BI, B> Searcher<N, BI, B>
             queue: Arc::new(Mutex::new(queue)),
             results: Arc::new(Mutex::new(Vec::new())),
             bounds: Arc::new(Mutex::new(B::new())),
-            waiting_workers: Arc::new(Mutex::new(Vec::new())),
+            waiting_workers: Arc::new(Mutex::new(HashSet::new())),
             is_finished: Arc::new(Mutex::new(false)),
             condvar_worker: Arc::new(Condvar::new()),
         }
@@ -138,6 +124,10 @@ impl<N, BI, B> Searcher<N, BI, B>
             condvar_worker.notify_all();
         };
 
+        fn is_all_worker_waiting(workerids: &HashSet<usize>, thread_num: usize) -> bool {
+            return (0..thread_num).all(|id| workerids.contains(&id));
+        }
+
         let workers = (0..thread_num)
             .map(|worker_id| {
                 let queue = self.queue.clone();
@@ -147,7 +137,11 @@ impl<N, BI, B> Searcher<N, BI, B>
                 let is_finished = self.is_finished.clone();
                 let condvar_worker = self.condvar_worker.clone();
 
-                thread::spawn(move || {
+                let mut builder = thread::Builder::new();
+
+                builder = builder.name(format!("worker {}", worker_id));
+
+                builder.spawn(move || {
                     debug!("[worker {}] start", worker_id);
                     'worker: loop {
                         let job;
@@ -156,22 +150,23 @@ impl<N, BI, B> Searcher<N, BI, B>
                             match _job {
                                 Some(j) => {
                                     job = j;
+                                    waiting_workers.lock().unwrap().remove(&worker_id);
                                     break 'get_job;
                                 }
                                 None => {
                                     debug!("[worker {}] no elem in queue", worker_id);
-                                    waiting_workers.lock().unwrap().push(worker_id);
-                                    let all_waiting = is_all_worker_waiting(&*waiting_workers.lock()
-                                                                                .unwrap(),
-                                                                            thread_num);
+                                    waiting_workers.lock().unwrap().insert(worker_id);
+                                    let all_waiting = is_all_worker_waiting(
+                                            &*waiting_workers.lock().unwrap(),
+                                            thread_num);
                                     if all_waiting {
                                         *is_finished.lock().unwrap() = true;
                                         condvar_worker.notify_all();
-                                        debug!("[worker {}] finished first", worker_id);
+                                        debug!("[worker {}] finished", worker_id);
                                         return;
                                     } else {
                                         if *condvar_worker.wait(is_finished.lock().unwrap()).unwrap() {
-                                            debug!("[worker {}] finished", worker_id);
+                                            debug!("[worker {}] finished by notification", worker_id);
                                             return;
                                         } else {
                                             debug!("[worker {}] re-start", worker_id);
@@ -185,11 +180,8 @@ impl<N, BI, B> Searcher<N, BI, B>
                             // leaf process
                             if job.node.is_leaf() {
                                 let mut queue = queue.lock().unwrap();
-                                queue.remove(&job);
                                 results.lock().unwrap().push(job.node.clone());
                                 continue 'worker;
-                            } else {
-                                push_job(&condvar_worker, &queue, job.clone());
                             }
                         }
 
@@ -206,16 +198,16 @@ impl<N, BI, B> Searcher<N, BI, B>
                                     // no more child node from this job.node,
                                     // so enumeration ends
                                     let mut queue = queue.lock().unwrap();
-                                    queue.remove(&job);
                                 }
                                 Some(node) => {
+                                    push_job(&condvar_worker, &queue, job.clone());
                                     let child_job = Job::new(node);
                                     push_job(&condvar_worker, &queue, Arc::new(child_job));
                                 }
                             }
                         }
                     }
-                })
+                }).unwrap()
             })
             .collect::<Vec<_>>();
 
