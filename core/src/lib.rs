@@ -88,7 +88,7 @@ impl<N: Eq, BI> std::cmp::PartialEq for Job<N, BI> {
 impl<N: Eq, BI> std::cmp::Eq for Job<N, BI> {}
 
 pub struct Searcher<N, BI, B=VoidBounds> {
-    queue: Arc<Mutex<SharableQueue<'static, Arc<Job<N, BI>>>>>,
+    queue: Arc<Mutex<SharableQueue<'static, Arc<Job<N, BI>>>>>, // XXX:lifetime
     results: Arc<Mutex<Vec<N>>>,
     bounds: Arc<RwLock<B>>,
     waiting_workers: Arc<Mutex<HashSet<usize>>>,
@@ -181,7 +181,6 @@ impl<N, BI, B> Searcher<N, BI, B>
                         {
                             // leaf process
                             if job.node.is_leaf() {
-                                let mut queue = queue.lock().unwrap();
                                 results.lock().unwrap().push(job.node.clone());
                                 continue 'worker;
                             }
@@ -199,7 +198,6 @@ impl<N, BI, B> Searcher<N, BI, B>
                                 None => {
                                     // no more child node from this job.node,
                                     // so enumeration ends
-                                    let mut queue = queue.lock().unwrap();
                                 }
                                 Some(node) => {
                                     push_job(&condvar_worker, &queue, job.clone());
