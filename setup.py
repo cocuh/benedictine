@@ -5,7 +5,7 @@ from rust_ext import build_rust, install_with_rust, RustModule
 rust_modules = [
     RustModule(
         'benedictine.core',
-        'core/Cargo.toml',
+        'Cargo.toml',
     ),
 ]
 
