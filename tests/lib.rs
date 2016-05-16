@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-extern crate benedictine_core;
-use benedictine_core::*;
+extern crate benedictine;
+use benedictine::*;
 
 extern crate env_logger;
 

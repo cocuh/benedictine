@@ -6,7 +6,7 @@ use std::collections::HashSet;
 extern crate log;
 
 
-pub trait Node: Send + Sync + Clone + Eq + 'static {
+pub trait Node: Send + Sync + Clone + 'static {
     fn is_leaf(&self) -> bool;
 }
 
@@ -41,7 +41,7 @@ struct FIFOQueue<T> {
     data: Vec<T>,
 }
 
-impl<T:Eq> Queue<T> for FIFOQueue<T> {
+impl<T> Queue<T> for FIFOQueue<T> {
     fn new()->Self {
         FIFOQueue {data: Vec::new()}
     }
