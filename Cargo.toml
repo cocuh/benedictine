@@ -1,5 +1,5 @@
 [package]
-name = "benedictine-core"
+name = "benedictine"
 version = "0.1.0"
 authors = ["Kosuke Kusano <cocuh.kk@gmail.com>"]
 
@@ -13,5 +13,5 @@ default-features = false
 features = ["python3-sys"]
 
 [lib]
-name = "benedictine_core"
+name = "benedictine"
 crate-type=["dylib", "rlib"]
