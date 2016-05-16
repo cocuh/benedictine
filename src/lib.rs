@@ -1,12 +1,12 @@
 use std::sync::{Mutex, Arc, Condvar, RwLock};
 use std::thread;
-use std::collections::HashSet;
+use std::collections::{BinaryHeap,HashSet};
 
 #[macro_use]
 extern crate log;
 
 
-pub trait Node: Send + Sync + Clone + 'static {
+pub trait Node: Send + Sync + Clone + Eq + Ord + 'static {
     fn is_leaf(&self) -> bool;
 }
 
@@ -26,7 +26,7 @@ pub trait Queue<T> {
     fn len(&self) -> usize;
 }
 
-type SharableQueue<'a, T> = Queue<T>+'a + Sized + Send;
+pub type SharableQueue<'a, T> = Queue<T>+'a + Sized + Send;
 
 #[derive(Clone)]
 pub struct VoidBounds {}
@@ -87,6 +87,38 @@ impl<N: Eq, BI> std::cmp::PartialEq for Job<N, BI> {
 
 impl<N: Eq, BI> std::cmp::Eq for Job<N, BI> {}
 
+impl<N:Eq,BI> std::cmp::PartialOrd for Job<N, BI> {
+    fn partial_cmp(&self, other:&Self) -> Option<std::cmp::Ordering> {
+        None
+    }
+}
+impl<N:Eq, BI> std::cmp::Ord for Job<N, BI> {
+    fn cmp(&self, other:&Self) -> std::cmp::Ordering {
+        std::cmp::Ordering::Equal
+    }
+}
+
+pub struct PriorityQueue<T> {
+    data: BinaryHeap<T>,
+}
+impl<T:Ord> Queue<T> for PriorityQueue<T> {
+    fn new() -> Self {
+        PriorityQueue {
+            data: BinaryHeap::new(),
+        }
+    }
+    fn enqueue(&mut self, elem: T) {
+        self.data.push(elem);
+    }
+    fn dequeue(&mut self) -> Option<T> {
+        self.data.pop()
+    }
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+}
+
+
 pub struct Searcher<N, BI, B=VoidBounds> {
     queue: Arc<Mutex<SharableQueue<'static, Arc<Job<N, BI>>>>>, // XXX:lifetime
     results: Arc<Mutex<Vec<N>>>,
@@ -102,7 +134,7 @@ impl<N, BI, B> Searcher<N, BI, B>
           B: Bounds,
 {
     pub fn new(root:N) -> Searcher<N, BI, B> {
-        let mut queue = FIFOQueue::new();
+        let mut queue = PriorityQueue::new();
         queue.enqueue(Arc::new(Job::new(root)));
         Searcher {
             queue: Arc::new(Mutex::new(queue)),

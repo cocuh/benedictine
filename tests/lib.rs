@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::collections::BinaryHeap;
 
 extern crate benedictine;
 use benedictine::*;
@@ -19,15 +20,16 @@ impl Bounds for TreeBounds {
 #[derive(Debug,Clone)]
 struct TreeNode {
     data: Vec<usize>,
+    depth: usize,
 }
 
 impl TreeNode {
-    fn new(data: Vec<usize>) -> TreeNode {
-        TreeNode { data: data }
+    fn new(data: Vec<usize>, depth: usize) -> TreeNode {
+        TreeNode { data: data, depth: depth}
     }
 
     fn root() -> TreeNode {
-        TreeNode { data: Vec::new() }
+        TreeNode { data: Vec::new(), depth: 0 }
     }
 }
 
@@ -44,6 +46,18 @@ impl std::cmp::PartialEq for TreeNode {
 }
 
 impl std::cmp::Eq for TreeNode {}
+
+impl std::cmp::PartialOrd for TreeNode {
+    fn partial_cmp(&self, other:&Self) -> Option<std::cmp::Ordering> {
+        None
+    }
+}
+
+impl std::cmp::Ord for TreeNode {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.depth.cmp(&other.depth)
+    }
+}
 
 
 #[derive(Debug, Clone)]
@@ -66,7 +80,7 @@ impl BranchIterator<TreeNode> for TreeBranchIterator {
             1...8 => {
                 data.push(self.current);
                 self.current += 1;
-                Some(TreeNode::new(data))
+                Some(TreeNode::new(data, self.node.depth + 1))
             }
             _ => None,
         }

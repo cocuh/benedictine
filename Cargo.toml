@@ -7,11 +7,3 @@ authors = ["Kosuke Kusano <cocuh.kk@gmail.com>"]
 log = "*"
 env_logger = "0.3"
 
-[dependencies.cpython]
-git = "https://github.com/dgrunwald/rust-cpython.git"
-default-features = false
-features = ["python3-sys"]
-
-[lib]
-name = "benedictine"
-crate-type=["dylib", "rlib"]
